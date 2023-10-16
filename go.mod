@@ -1,4 +1,4 @@
-module c3
+module github.com/oddy/c3-go
 
 go 1.19
 
