@@ -109,7 +109,7 @@ func TestVerifyPayload(t *testing.T) {
 	ppkey, rchain, err = LoadPubBlock(rblock)
 	require.Nil(t, err)
 	require.Equal(t, PUB_CERTCHAIN, ppkey)
-	root := rchain[0].cert
+	root := rchain[0].Cert
 	trustedCerts[hex.EncodeToString(root.CertID)] = root
 
 	// ---
@@ -122,7 +122,7 @@ func TestVerifyPayload(t *testing.T) {
 	err = Verify(chain)
 	require.Nil(t, err)
 
-	require.Equal(t, "This is a recording. Testing 1 2 3.\n", string(chain[0].payload))
+	require.Equal(t, "This is a recording. Testing 1 2 3.\n", string(chain[0].Payload))
 	// we know its a string in this case.
 }
 
@@ -140,7 +140,7 @@ func T_estTruncatedPayload(t *testing.T) {
 	ppkey, rchain, err = LoadPubBlock(rblock)
 	require.Nil(t, err)
 	require.Equal(t, PUB_CERTCHAIN, ppkey)
-	root := rchain[0].cert
+	root := rchain[0].Cert
 	trustedCerts[hex.EncodeToString(root.CertID)] = root
 
 	pristineBlock, _, err = TextToBinaryBlock(TEST_PAYLOAD9)

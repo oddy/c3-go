@@ -52,11 +52,11 @@ type DasBytes struct {
 
 // This is a DAS with everything unpacked (certs & payloads etc) made by Load for Verify to use
 type DasCertPayload struct {
-	dataPart []byte
-	sigPart  []byte
-	payload  []byte
-	cert     Cert
-	sig      Signature
+	DataPart []byte
+	SigPart  []byte
+	Payload  []byte
+	Cert     Cert
+	Sig      Signature
 }
 
 // Global variables
@@ -72,6 +72,9 @@ func SplitLines(input string) []string {
 	normalized := strings.Replace(input, "\r\n", "\n", -1) // Normalize Windows line endings
 	return strings.Split(normalized, "\n")
 }
+
+// fixme: These need to change because errors.New isn't supposed to be used like this. (The stacktrace will start here instead of where the error is created.)
+//        See if we can come up with something else that works with the one time we use errors.Is
 
 var (
 	TextStructureError = errors.New("File text vertical structure is invalid")
@@ -185,25 +188,25 @@ func LoadPubBlock(publicPart []byte) (ppkey int, chain []DasCertPayload, err err
 			err = errors.Wrap(StructureError, "fail concretizing das item")
 			return
 		}
-		dcp := DasCertPayload{dataPart: das.DataPart, sigPart: das.SigPart}
+		dcp := DasCertPayload{DataPart: das.DataPart, SigPart: das.SigPart}
 		if i == 0 && ppkey == PUB_PAYLOAD {
-			dcp.payload = dcp.dataPart
+			dcp.Payload = dcp.DataPart
 		} else {
 			cert := Cert{}
-			err = b3.BufToStruct(dcp.dataPart, &cert)
+			err = b3.BufToStruct(dcp.DataPart, &cert)
 			if err != nil {
 				err = errors.Wrap(err, "fail unpacking cert")
 				return
 			}
-			dcp.cert = cert
+			dcp.Cert = cert
 		}
 		sig := Signature{}
-		err = b3.BufToStruct(dcp.sigPart, &sig)
+		err = b3.BufToStruct(dcp.SigPart, &sig)
 		if err != nil {
 			err = errors.Wrap(err, "fail unpacking Signature")
 			return
 		}
-		dcp.sig = sig
+		dcp.Sig = sig
 
 		chain = append(chain, dcp)
 	}
@@ -226,11 +229,11 @@ func AddTrusted(block []byte) error {
 	err = Verify(chain)
 	// -- chain does not link to trusted certs error is expected here. --
 	// -- Anything else is still bad though.                           --
-	if err != nil && !errors.Is(err, NoLinkError) {
+	if err != nil && !errors.Is(err, NoLinkError) { // todo: we need to switch this to a string compare and not use errors.Is because we are using errors.New wrong.
 		return err
 	}
 	// -- Put the cert in the trust store --
-	root := chain[0].cert
+	root := chain[0].Cert
 	trustedCerts[hex.EncodeToString(root.CertID)] = root
 	return nil
 }
@@ -243,22 +246,22 @@ func Verify(chain []DasCertPayload) error {
 		return errors.Wrap(StructureError, "Cannot verify - no cert chain present")
 	}
 	for _, dcp := range chain {
-		scertid := hex.EncodeToString(dcp.cert.CertID)
+		scertid := hex.EncodeToString(dcp.Cert.CertID)
 		if scertid != "" {
-			certsById[scertid] = dcp.cert
+			certsById[scertid] = dcp.Cert
 		}
 	}
 	foundInTrusted := false
 
 	for i, dcp := range chain {
 		// --- Find the 'next cert' ie the one which verifies our signature ---
-		signingCertId := hex.EncodeToString(dcp.sig.SigningCertID) // need hashable value, which []byte isn't.
+		signingCertId := hex.EncodeToString(dcp.Sig.SigningCertID) // need hashable value, which []byte isn't.
 		if len(signingCertId) == 0 {
 			// --- no signing-id means "next cert in the chain" ---
 			if i+1 >= len(chain) { // have we fallen off the end?
 				return errors.Wrap(VerifyError, ctmn(dcp)+"Next issuer cert is missing")
 			}
-			nextCert = chain[i+1].cert
+			nextCert = chain[i+1].Cert
 		} else {
 			// --- got a name, look in trusted & in our own chain for it ---
 			trCert, trFound := trustedCerts[signingCertId]
@@ -277,7 +280,7 @@ func Verify(chain []DasCertPayload) error {
 		}
 
 		// --- Actually verify the signature ---
-		err := KeypairsVerify(nextCert, dcp.dataPart, dcp.sig.Signature)
+		err := KeypairsVerify(nextCert, dcp.DataPart, dcp.Sig.Signature)
 		if err != nil {
 			return errors.Wrap(err, "Signature failed to verify")
 		}
@@ -305,8 +308,8 @@ func KeypairsVerify(cert Cert, dataBytes []byte, sigBytes []byte) error {
 }
 
 func ctmn(dcp DasCertPayload) string {
-	if len(dcp.cert.CertID) > 0 {
-		return fmt.Sprintf(" (cert %s) ", dcp.cert.SubjectName)
+	if len(dcp.Cert.CertID) > 0 {
+		return fmt.Sprintf(" (cert %s) ", dcp.Cert.SubjectName)
 	}
 	return " (payload) "
 }
@@ -337,11 +340,11 @@ func ChainMetadata(chain []DasCertPayload, FieldEx func(*Cert) string) []string 
 	}
 
 	for _, dcp := range chain {
-		results = append(results, Blankify(FieldEx(&dcp.cert))) // subjectName or certType
+		results = append(results, Blankify(FieldEx(&dcp.Cert))) // subjectName or certType
 	}
 
 	lastDcp := chain[len(chain)-1]
-	lastSigningCertIdHex := hex.EncodeToString(lastDcp.sig.SigningCertID)
+	lastSigningCertIdHex := hex.EncodeToString(lastDcp.Sig.SigningCertID)
 
 	// --- lastSigningCertId should be in trusted. ---
 	trCert, trFound := trustedCerts[lastSigningCertIdHex]
